@@ -20,8 +20,8 @@ import client.CCommand;
  */
 public class ResourceGetter {
 
-	public final static String translations = "Commands.txt";
-	public final static String help = "Help.txt";
+	public final static String translations = "resources/Commands.txt";
+	public final static String help = "resources/Help.txt";
 
 	public static Map<String, CCommand> getTrans() throws IOException {
 

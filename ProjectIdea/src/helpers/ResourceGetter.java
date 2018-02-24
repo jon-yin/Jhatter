@@ -1,10 +1,10 @@
 package helpers;
 
-import java.io.File;
+import java.io.BufferedReader;
 import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -20,27 +20,40 @@ import client.CCommand;
  */
 public class ResourceGetter {
 
-	public final static String translations = "resources/Commands.txt";
-	public final static String help = "resources/Help.txt";
+	public final static String translations = "/Commands.txt";
+	public final static String help = "/Help.txt";
 
 	public static Map<String, CCommand> getTrans() throws IOException {
-
-		File f = new File(translations);
-		Path path = Paths.get(f.toURI());
-		List<String> translations = Files.readAllLines(path);
+		//Path cwd = Paths.get("");
+		//System.out.println(cwd.toAbsolutePath());
+		InputStream fileText = ResourceGetter.class.getResourceAsStream(translations);
+		BufferedReader reader = new BufferedReader(new InputStreamReader(fileText));
+		List<String> readTranslations = new ArrayList<>();
+		String curLine = null;
+		while ((curLine = reader.readLine()) != null)
+		{
+			readTranslations.add(curLine);
+		}
 		CCommand[] commands = CCommand.values();
 		Map<String, CCommand> map = new HashMap<>();
-		for (int i = 0; i < translations.size(); i++) {
-			map.put(translations.get(i), commands[i + 1]);
+		for (int i = 0; i < readTranslations.size(); i++) {
+			map.put(readTranslations.get(i), commands[i + 1]);
 		}
 		return map;
 	}
 
 	public static List<String> getHelpText() throws IOException
 	{
-		File f = new File(help);
-		Path path = Paths.get(f.toURI());
-		return Files.readAllLines(path);
+		InputStream fileText = ResourceGetter.class.getResourceAsStream(help);
+		BufferedReader reader = new BufferedReader(new InputStreamReader(fileText));
+		List<String> helpLines = new ArrayList<>();
+		String curLine = null;
+		while ((curLine = reader.readLine()) != null)
+		{
+			helpLines.add(curLine);
+		}
+		return helpLines;
+
 	}
 
 }

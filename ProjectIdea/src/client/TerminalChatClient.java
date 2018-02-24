@@ -6,6 +6,7 @@ import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.io.OutputStream;
 import java.net.InetAddress;
+import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.net.UnknownHostException;
 import java.util.Scanner;
@@ -27,8 +28,10 @@ public class TerminalChatClient {
 	}
 
 	public void start() {
-		try (Socket server = new Socket(toAddress, port);
+		try (Socket server = new Socket();
 				Scanner userText = new Scanner(System.in);) {
+			server.setSoTimeout(15000);
+			server.connect(new InetSocketAddress(toAddress, port));
 			InputStream in = server.getInputStream();
 			OutputStream out = server.getOutputStream();
 			ObjectOutputStream sendMessages = new ObjectOutputStream(out);

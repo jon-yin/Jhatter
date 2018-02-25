@@ -10,6 +10,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Scanner;
 import java.util.Set;
+import java.util.TimerTask;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.function.BiFunction;
@@ -24,12 +25,15 @@ public class ChatServer {
 	private ConcurrentHashMap<String, User> everyone;
 	private ConcurrentSkipListSet<Chatroom> chatrooms;
 	private ClientHandler handler;
+	private boolean[] done;
 
 	public ChatServer(int port) {
 		this.port = port;
 		everyone = new ConcurrentHashMap<String, User>();
 		handler = new ClientHandler();
 		chatrooms = new ConcurrentSkipListSet<>();
+		done = new boolean[1];
+		done[0] = false;
 	}
 
 	public void startListening() {
@@ -37,14 +41,11 @@ public class ChatServer {
 		try (ServerSocket sSocket = new ServerSocket(port)) {
 			boolean[] done = new boolean[1];
 			done[0] = false;
-			Thread stopThread = new Thread(() ->
-			{
+			Thread stopThread = new Thread(() -> {
 				Scanner read = new Scanner(System.in);
-				while(read.hasNextLine())
-				{
+				while (read.hasNextLine()) {
 					String command = read.nextLine();
-					if (command.equals("Quit"))
-					{
+					if (command.equals("Quit")) {
 						done[0] = true;
 						read.close();
 						break;
@@ -69,6 +70,26 @@ public class ChatServer {
 	}
 
 	/**
+	 * The purpose of this class is to clean up empty chatrooms every 10
+	 * seconds.
+	 * 
+	 * @author Jonathan Yin
+	 *
+	 */
+	private class cleanUpTask extends TimerTask {
+
+		@Override
+		public void run() {
+			for (Chatroom chatroom : chatrooms) {
+				if (chatroom.isEmpty()) {
+					chatrooms.remove(chatroom);
+				}
+			}
+		}
+
+	}
+
+	/**
 	 * Represents the various unique ways to respond to a Client Message based
 	 * on the code given from it. The purpose of this class is to prevent
 	 * registering unsafe handlers if given only the class files but also enable
@@ -84,38 +105,32 @@ public class ChatServer {
 			handlers = new HashMap<>();
 			populateMap();
 		}
-		
-		public ServerMessage handleCMessage(ClientMessage cm, User user)
-		{
+
+		public ServerMessage handleCMessage(ClientMessage cm, User user) {
 			return handlers.get(cm.getCommand()).apply(cm.getBody(), user);
 		}
 
 		private void populateMap() {
-			
-			handlers.put(CCommand.NONE, (input, user) ->
-					{
-						if (user.getRoom() == null)
-							return new ServerMessage(SCode.ERROR, "You are currently not in a room!");
-						else
-						{
-							ServerMessage message = new ServerMessage(SCode.RESPONSE_T, user.getName() + ": " + input);
-							Chatroom currentRoom = user.getRoom();
-							Set<User> users = currentRoom.getAllUsers();
-							for (User recipient: users)
-							{
-								try{
-									recipient.writeMessage(message);
-								}
-								catch (IOException ex)
-								{
-									ex.printStackTrace();
-								}
-								
-							}
-							return null;
+
+			handlers.put(CCommand.NONE, (input, user) -> {
+				if (user.getRoom() == null)
+					return new ServerMessage(SCode.ERROR, "You are currently not in a room!");
+				else {
+					ServerMessage message = new ServerMessage(SCode.RESPONSE_T, user.getName() + ": " + input);
+					Chatroom currentRoom = user.getRoom();
+					Set<User> users = currentRoom.getAllUsers();
+					for (User recipient : users) {
+						try {
+							recipient.writeMessage(message);
+						} catch (IOException ex) {
+							ex.printStackTrace();
 						}
-					});
-			
+
+					}
+					return null;
+				}
+			});
+
 			handlers.put(CCommand.CREATE, (input, user) -> {
 				input = input.trim();
 				if (input.isEmpty()) {
@@ -137,18 +152,14 @@ public class ChatServer {
 
 			handlers.put(CCommand.HELP, (input, user) -> {
 				StringBuilder commands = new StringBuilder();
-				try
-				{
+				try {
 					List<String> help = ResourceGetter.getHelpText();
-					for (String line: help)
-					{
+					for (String line : help) {
 						commands.append(line);
 						commands.append("\n");
 					}
-					
-				}
-				catch (IOException ex)
-				{
+
+				} catch (IOException ex) {
 					commands.append("Sorry but the Help file could not properly loaded!");
 				}
 				return new ServerMessage(SCode.RESPONSE_T, commands.toString());
@@ -199,7 +210,8 @@ public class ChatServer {
 						if (room.getName().equals(roomName)) {
 							room.addUser(user);
 							user.setRoom(room);
-							ServerMessage message = new ServerMessage(SCode.RESPONSE_T, "Successfully entered room " + roomName);
+							ServerMessage message = new ServerMessage(SCode.RESPONSE_T,
+									"Successfully entered room " + roomName);
 							return message;
 						}
 					}
@@ -207,19 +219,14 @@ public class ChatServer {
 				ServerMessage error = new ServerMessage(SCode.ERROR, "Room " + roomName + " Doesn't exist!");
 				return error;
 			});
-			
-			handlers.put((CCommand.WHO), (input, user) ->
-			{
-				if (user.getRoom() != null)
-				{
+
+			handlers.put((CCommand.WHO), (input, user) -> {
+				if (user.getRoom() != null) {
 					Chatroom target = user.getRoom();
-					for (Chatroom c : chatrooms)
-					{
-						if (c.getName().equals(target.getName()))
-						{
-							StringBuilder builder =new StringBuilder();
-							for (User present: c.getAllUsers())
-							{
+					for (Chatroom c : chatrooms) {
+						if (c.getName().equals(target.getName())) {
+							StringBuilder builder = new StringBuilder();
+							for (User present : c.getAllUsers()) {
 								builder.append(present.getName());
 								builder.append("\n");
 							}
@@ -230,19 +237,15 @@ public class ChatServer {
 				}
 				return new ServerMessage(SCode.ERROR, "You are not currently in a room!");
 			});
-			
-			
-			handlers.put(CCommand.ROOMS, (input, user) ->
-			{
-				StringBuilder builder= new StringBuilder();
-				for (Chatroom room : chatrooms)
-				{
+
+			handlers.put(CCommand.ROOMS, (input, user) -> {
+				StringBuilder builder = new StringBuilder();
+				for (Chatroom room : chatrooms) {
 					builder.append(room.getName());
 					builder.append("\n");
 				}
 				return new ServerMessage(SCode.RESPONSE_T, "LIST OF ROOMS\n" + builder.toString());
 			});
-			
 
 		}
 	}
@@ -273,11 +276,9 @@ public class ChatServer {
 				getClientInfo();
 				processMessages();
 			} catch (IOException ex) {
-				if (user != null)
-				{
+				if (user != null) {
 					everyone.remove(user.getName());
-					if (user.getRoom() != null)
-					{
+					if (user.getRoom() != null) {
 						user.getRoom().removeUser(user);
 					}
 				}
@@ -297,18 +298,17 @@ public class ChatServer {
 
 		}
 
-		private void processMessages() throws IOException{
+		private void processMessages() throws IOException {
 
-				while (true) {
-					ClientMessage message = user.getMessage();
-					ServerMessage sendMessage = handler.handleCMessage(message, user);
-					if (sendMessage != null)
-					{
-						user.writeMessage(sendMessage);
-						if (sendMessage.getCode() == SCode.ERROR)
-							user.writeMessage(new ServerMessage(SCode.RESPONSE_T, "For more help, enter the HELP command"));
-					}
-				}	
+			while (true) {
+				ClientMessage message = user.getMessage();
+				ServerMessage sendMessage = handler.handleCMessage(message, user);
+				if (sendMessage != null) {
+					user.writeMessage(sendMessage);
+					if (sendMessage.getCode() == SCode.ERROR)
+						user.writeMessage(new ServerMessage(SCode.RESPONSE_T, "For more help, enter the HELP command"));
+				}
+			}
 		}
 
 		private void getClientInfo() throws IOException {

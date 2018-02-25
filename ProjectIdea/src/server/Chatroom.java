@@ -15,6 +15,11 @@ public class Chatroom implements Comparable<Chatroom>{
 		this.name = name;
 	}
 	
+	public boolean isEmpty()
+	{
+		return users.isEmpty();
+	}
+	
 	public String getName()
 	{
 		return name;

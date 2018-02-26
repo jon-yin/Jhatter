@@ -1,8 +1,0 @@
-CLIENT COMMANDS ARE AS FOLLOWS:
-1.JOIN [chatroom name]- Join the specified chatroom if it exists.
-2.LEAVE - If you're currently in a chatroom, leave the room.
-3.WHISPER [username] [message] - Sends the message to the specified user (no one else in the chatroom can see it).
-4.HELP - Prints this list of help commands.
-5.CREATE [chatroom name]- Attempt to make a new chatroom.
-6.WHO - Prints a list of all users who are in this chatroom.
-7.ROOMS - Prints a list of all chatrooms.

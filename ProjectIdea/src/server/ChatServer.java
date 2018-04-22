@@ -10,6 +10,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Scanner;
 import java.util.Set;
+import java.util.Timer;
 import java.util.TimerTask;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentSkipListSet;
@@ -26,6 +27,8 @@ public class ChatServer {
 	private ConcurrentSkipListSet<Chatroom> chatrooms;
 	private ClientHandler handler;
 	private boolean[] done;
+	//10 seconds per room clear.
+	public final int CLEANUP_INTERVAL = 10000;
 
 	public ChatServer(int port) {
 		this.port = port;
@@ -34,6 +37,8 @@ public class ChatServer {
 		chatrooms = new ConcurrentSkipListSet<>();
 		done = new boolean[1];
 		done[0] = false;
+		Timer cleanup = new Timer(true);
+		cleanup.scheduleAtFixedRate(new CleanUpTask(), 0, CLEANUP_INTERVAL);
 	}
 
 	public void startListening() {
@@ -57,7 +62,7 @@ public class ChatServer {
 			stopThread.start();
 			while (!done[0]) {
 				Socket client = sSocket.accept();
-				System.out.println("Client Recieved");
+				//System.out.println("Client Recieved");
 				Thread t = new Thread(new ServerThreadHandler(client, i));
 				t.start();
 				i++;
@@ -76,7 +81,7 @@ public class ChatServer {
 	 * @author Jonathan Yin
 	 *
 	 */
-	private class cleanUpTask extends TimerTask {
+	private class CleanUpTask extends TimerTask {
 
 		@Override
 		public void run() {
@@ -106,10 +111,24 @@ public class ChatServer {
 			populateMap();
 		}
 
+		/**
+		 * Method to perform some action with regards to a ClientMessage and then return an appropriate
+		 * response to the server.
+		 * @param cm The ClientMessage sent by the client.
+		 * @param user The User object which represents this client.
+		 * @return A ServerMessage object with an appropriate response code and message.
+		 */
 		public ServerMessage handleCMessage(ClientMessage cm, User user) {
 			return handlers.get(cm.getCommand()).apply(cm.getBody(), user);
 		}
 
+		
+		/**
+		 * Inner method to abstract away the specific handlers for each different type of CCommand enum type
+		 * It's simple to extend, it simple needs to add an entry to handlers for the specified enum type
+		 * to a Bifunction<String, User, ServerMessage>. Do all the important processing in the Bifunction
+		 * and return a ServerMessage.
+		 */
 		private void populateMap() {
 
 			handlers.put(CCommand.NONE, (input, user) -> {
@@ -230,7 +249,7 @@ public class ChatServer {
 								builder.append(present.getName());
 								builder.append("\n");
 							}
-							return new ServerMessage(SCode.RESPONSE_T, "LIST OF USERS\n" + builder.toString());
+							return new ServerMessage(SCode.WHO, "LIST OF USERS\n" + builder.toString());
 						}
 						return new ServerMessage(SCode.ERROR, "This shouldn't happen.");
 					}
@@ -244,7 +263,7 @@ public class ChatServer {
 					builder.append(room.getName());
 					builder.append("\n");
 				}
-				return new ServerMessage(SCode.RESPONSE_T, "LIST OF ROOMS\n" + builder.toString());
+				return new ServerMessage(SCode.ROOMS, "LIST OF ROOMS\n" + builder.toString());
 			});
 
 		}
@@ -259,13 +278,12 @@ public class ChatServer {
 		User user;
 
 		public ServerThreadHandler(Socket sock, int id) throws IOException {
-			System.out.println("Creating new thread handler!");
+			//System.out.println("Creating new thread handler!");
 			this.id = id;
 			client = sock;
 			output = new ObjectOutputStream(client.getOutputStream());
 			output.flush();
 			input = new ObjectInputStream(client.getInputStream());
-			System.out.println("Made Streams");
 			// everyone.put(id, output);
 
 		}
@@ -273,7 +291,9 @@ public class ChatServer {
 		@Override
 		public void run() {
 			try {
+				// Introductory messages between client and server (setting up a name)
 				getClientInfo();
+				// Main processing loop.
 				processMessages();
 			} catch (IOException ex) {
 				if (user != null) {
@@ -314,6 +334,7 @@ public class ChatServer {
 		private void getClientInfo() throws IOException {
 			try {
 				while (true) {
+					//System.out.println("Lets start with introductions");
 					ServerMessage introMessage = new ServerMessage(SCode.RESPONSE_T,
 							"Welcome to the Server!, what's your name?");
 					output.writeObject(introMessage);
@@ -322,7 +343,7 @@ public class ChatServer {
 					String name = CMessage.getBody();
 					user = new User(id, output, input, name);
 					if (everyone.putIfAbsent(name, user) == null) {
-						System.out.println(everyone.keySet());
+						//System.out.println(everyone.keySet());
 						break;
 					}
 					ServerMessage errorMessage = new ServerMessage(SCode.ERROR,

@@ -17,12 +17,24 @@ public class ClientMessage implements Serializable{
 		processInput(input);
 	}
 	
+	public ClientMessage(CCommand command, String body)
+	{
+		this.command = command;
+		this.body = body;
+	}
+	
+	/**
+	 * Converts an unformatted String of input into a formatted ClientMessage with a command and body that
+	 * the server can interpret.
+	 * @param input The unformatted input to be converted.
+	 */
 	public void processInput(String input)
 	{
 		Set<String> validCommands = CCommand.commands.keySet();
 		String parsedCommand = input.split("\\s+")[0];
 		if (validCommands.contains(parsedCommand))
 		{
+			
 			command = CCommand.commands.get(parsedCommand);
 			//For now we are not sending any binary data, thus we can just send the String literally with command stripped off.
 			//This will be changed later.

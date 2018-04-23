@@ -40,17 +40,18 @@ public class User implements Comparable<User>{
 		output.flush();	
 	}
 	
-	public ClientMessage getMessage() throws EOFException
+	public ClientMessage getMessage() throws IOException
 	{
 		try{
 			return (ClientMessage)(input.readObject());
 		}
 		catch (ClassNotFoundException | IOException ex)
 		{
-			if (ex instanceof EOFException)
+			if (ex instanceof IOException)
 			{
-				//No easy way to handle a socket closing on the client side, throw EOFException to signal clean up of resources.
-				throw (EOFException)(ex);
+				//No easy way to handle a socket closing on the client side, throw IOException to signal clean up of resources.
+				//System.out.println("SOCKET EXCEPTION THROWN");
+				throw (IOException)(ex);
 			}
 			else{
 			ex.printStackTrace();

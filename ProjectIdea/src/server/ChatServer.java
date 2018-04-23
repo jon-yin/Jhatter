@@ -222,8 +222,8 @@ public class ChatServer {
 			});
 
 			handlers.put(CCommand.JOIN, (input, user) -> {
-				String[] args = input.split("\\s+");
-				String roomName = args[0].trim();
+				int commandIndex = input.indexOf(" ");
+				String roomName = input.substring(commandIndex).trim();
 				for (Chatroom room : chatrooms) {
 					synchronized (room) {
 						if (room.getName().equals(roomName)) {
@@ -305,7 +305,7 @@ public class ChatServer {
 				try {
 					client.close();
 				} catch (IOException e) {
-					e.printStackTrace();
+					//e.printStackTrace();
 				}
 				return;
 			}
@@ -339,8 +339,14 @@ public class ChatServer {
 							"Welcome to the Server!, what's your name?");
 					output.writeObject(introMessage);
 					output.flush();
+					String name ="";
+					while (true){
 					ClientMessage CMessage = (ClientMessage) (input.readObject());
-					String name = CMessage.getBody();
+					if (CMessage.getCommand() == CCommand.NONE){
+						name = CMessage.getBody();
+						break;
+						}
+					}
 					user = new User(id, output, input, name);
 					if (everyone.putIfAbsent(name, user) == null) {
 						//System.out.println(everyone.keySet());

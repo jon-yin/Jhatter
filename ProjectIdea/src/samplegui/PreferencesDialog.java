@@ -27,7 +27,6 @@ public class PreferencesDialog extends JDialog{
 	private List<PreferencesVisitor> visitors;
 	private Preferences storedPrefs;
 	private ButtonGroup group;
-	private JTextField timeoutField;
 	public static final Dimension MIN_DIMENSION;
 	
 	static
@@ -66,12 +65,6 @@ public class PreferencesDialog extends JDialog{
 			});
 		}
 		
-		
-		JLabel label = new JLabel("Max socket timeout (in seconds)");
-		timeoutField = new JTextField(10);
-		timeout.add(label);
-		timeout.add(timeoutField);
-		
 		JButton apply = new JButton("Apply");
 		JButton cancel = new JButton("Cancel");
 		buttons.add(apply);
@@ -91,7 +84,6 @@ public class PreferencesDialog extends JDialog{
 		SwingUtilities.getRootPane(this).setDefaultButton(apply);
 		
 		add(lookandfeel);
-		add(timeout);
 		add(buttons);
 		pack();
 		setLocationRelativeTo(parent);
@@ -117,27 +109,10 @@ public class PreferencesDialog extends JDialog{
 			}	
 		}
 		
-		int timeout = storedPrefs.getInt("timeout", -1);
-		if (timeout != -1)
-			timeoutField.setText(Integer.toString(timeout));
-		else
-			timeoutField.setText("");
 	}
 	
 	public void saveSettings()
 	{
-		try {
-			int timeout = Integer.parseInt(timeoutField.getText());
-			if (timeout < 0)
-			{
-				storedPrefs.putInt("timeout", -1);
-			}
-			else{
-				storedPrefs.putInt("timeout", timeout);
-			}
-		} catch (NumberFormatException e) {
-			storedPrefs.putInt("timeout", -1);
-		}
 		Enumeration <AbstractButton> buttons = group.getElements();
 		while (buttons.hasMoreElements()){
 			AbstractButton b = buttons.nextElement();

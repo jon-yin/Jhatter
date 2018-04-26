@@ -25,12 +25,14 @@ public class ChatServer {
 	private int port;
 	private ConcurrentHashMap<String, User> everyone;
 	private ConcurrentSkipListSet<Chatroom> chatrooms;
+	private Chatroom global;
 	private ClientHandler handler;
 	private boolean[] done;
 	//10 seconds per room clear.
-	public final int CLEANUP_INTERVAL = 10000;
+	public final int CLEANUP_INTERVAL = 15000;
 
 	public ChatServer(int port) {
+		global = new Chatroom("Global");
 		this.port = port;
 		everyone = new ConcurrentHashMap<String, User>();
 		handler = new ClientHandler();
@@ -185,11 +187,12 @@ public class ChatServer {
 			});
 
 			handlers.put(CCommand.LEAVE, (input, user) -> {
-				if (user.getRoom() == null) {
+				if (user.getRoom() == global) {
 					return new ServerMessage(SCode.ERROR, "You're currently not in a room!");
 				} else {
 					user.getRoom().removeUser(user);
-					user.setRoom(null);
+					user.setRoom(global);
+					global.addUser(user);
 					return new ServerMessage(SCode.RESPONSE_T, "Successfully left room");
 				}
 			});
@@ -203,6 +206,11 @@ public class ChatServer {
 				}
 				String name = args[0];
 				String message = input.substring(name.length()).trim();
+				if (user.getName().equals(name))
+				{
+					ServerMessage prohibitSelf = new ServerMessage(SCode.ERROR, "SERVER: You cannot whisper to yourself");
+					return prohibitSelf;
+				}
 				if (everyone.containsKey(name)) {
 					ServerMessage whisper = new ServerMessage(SCode.RESPONSE_T,
 							user.getName() + " (whisper): " + message);
@@ -222,13 +230,13 @@ public class ChatServer {
 			});
 
 			handlers.put(CCommand.JOIN, (input, user) -> {
-				int commandIndex = input.indexOf(" ");
-				String roomName = input.substring(commandIndex).trim();
+				String roomName = input;
 				for (Chatroom room : chatrooms) {
 					synchronized (room) {
 						if (room.getName().equals(roomName)) {
 							room.addUser(user);
 							user.setRoom(room);
+							global.removeUser(user);
 							ServerMessage message = new ServerMessage(SCode.RESPONSE_T,
 									"Successfully entered room " + roomName);
 							return message;
@@ -242,6 +250,15 @@ public class ChatServer {
 			handlers.put((CCommand.WHO), (input, user) -> {
 				if (user.getRoom() != null) {
 					Chatroom target = user.getRoom();
+					if (target == global)
+					{
+						StringBuilder builder = new StringBuilder();
+						for (User present : global.getAllUsers()) {
+							builder.append(present.getName());
+							builder.append("\n");
+						}
+						return new ServerMessage(SCode.WHO, "LIST OF USERS\n" + builder.toString());
+					}
 					for (Chatroom c : chatrooms) {
 						if (c.getName().equals(target.getName())) {
 							StringBuilder builder = new StringBuilder();
@@ -334,7 +351,6 @@ public class ChatServer {
 		private void getClientInfo() throws IOException {
 			try {
 				while (true) {
-					//System.out.println("Lets start with introductions");
 					ServerMessage introMessage = new ServerMessage(SCode.RESPONSE_T,
 							"Welcome to the Server!, what's your name?");
 					output.writeObject(introMessage);
@@ -346,6 +362,9 @@ public class ChatServer {
 						name = CMessage.getBody();
 						break;
 						}
+					ServerMessage sm = new ServerMessage(SCode.ERROR, "Please enter a name before doing anything.");
+					output.writeObject(sm);
+					output.flush();
 					}
 					user = new User(id, output, input, name);
 					if (everyone.putIfAbsent(name, user) == null) {
@@ -359,6 +378,8 @@ public class ChatServer {
 				}
 				user.writeMessage(
 						new ServerMessage(SCode.RESPONSE_T, "Welcome to the server: " + user.getName() + "!"));
+				global.addUser(user);
+				user.setRoom(global);
 			} catch (Exception e) {
 				throw new IOException();
 			}

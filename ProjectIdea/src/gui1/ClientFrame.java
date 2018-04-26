@@ -32,14 +32,19 @@ import javax.swing.JMenu;
 import javax.swing.JMenuBar;
 import javax.swing.JMenuItem;
 import javax.swing.JOptionPane;
+import javax.swing.JPopupMenu;
 import javax.swing.JScrollPane;
 import javax.swing.JTextArea;
 import javax.swing.JTextField;
 import javax.swing.KeyStroke;
+import javax.swing.ListSelectionModel;
 import javax.swing.ScrollPaneConstants;
-import javax.swing.SwingConstants;
 import javax.swing.SwingUtilities;
 import javax.swing.UIManager;
+import javax.swing.event.ChangeEvent;
+import javax.swing.event.ChangeListener;
+import javax.swing.event.ListSelectionEvent;
+import javax.swing.event.ListSelectionListener;
 
 import client.CCommand;
 import client.ClientMessage;
@@ -48,6 +53,7 @@ import server.ServerMessage;
 
 public class ClientFrame extends JFrame implements PreferencesVisitor {
 
+	private static final long serialVersionUID = -7911099829217337493L;
 	private LoginDialog loginDialog;
 	private PreferencesDialog prefsDialog;
 	private JTextField sendText;
@@ -57,6 +63,7 @@ public class ClientFrame extends JFrame implements PreferencesVisitor {
 	private JLabel status;
 	private JLabel whisper;
 	private JCheckBox isWhispering;
+	private boolean refreshRooms;
 	private boolean isConnected = false;
 	private Socket socket;
 	private ObjectInputStream readMessages;
@@ -85,6 +92,8 @@ public class ClientFrame extends JFrame implements PreferencesVisitor {
 		users = new JList<>();
 		rooms.setPrototypeCellValue("##############");
 		users.setPrototypeCellValue("##############");
+		rooms.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+		users.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
 		JScrollPane roomsList = new JScrollPane(rooms);
 		JScrollPane usersList = new JScrollPane(users);
 		recievedChat = new JTextArea(10, 20);
@@ -192,7 +201,7 @@ public class ClientFrame extends JFrame implements PreferencesVisitor {
 		gb.weightx = 0;
 		gb.weighty = 0;
 		gb.fill = GridBagConstraints.NONE;
-		//gb.anchor= GridBagConstraints.LINE_END;
+		// gb.anchor= GridBagConstraints.LINE_END;
 		gb.insets = border;
 		add(chatLabel, gb);
 
@@ -202,7 +211,7 @@ public class ClientFrame extends JFrame implements PreferencesVisitor {
 		gb.gridwidth = 1;
 		gb.weightx = 0;
 		gb.weighty = 0;
-		gb.anchor= GridBagConstraints.LINE_START;
+		gb.anchor = GridBagConstraints.LINE_START;
 		gb.fill = GridBagConstraints.HORIZONTAL;
 		gb.insets = border;
 		add(sendText, gb);
@@ -213,13 +222,13 @@ public class ClientFrame extends JFrame implements PreferencesVisitor {
 		gb.gridwidth = 1;
 		gb.weightx = 0;
 		gb.weighty = 0;
-		gb.anchor= GridBagConstraints.CENTER;
+		gb.anchor = GridBagConstraints.CENTER;
 		// gb.anchor = GridBagConstraints.LINE_START;
 		gb.fill = GridBagConstraints.NONE;
 		gb.insets = border;
 		add(status, gb);
-		
-		gb.gridx=0;
+
+		gb.gridx = 0;
 		gb.gridy = 4;
 		gb.gridheight = 1;
 		gb.gridwidth = 1;
@@ -229,7 +238,7 @@ public class ClientFrame extends JFrame implements PreferencesVisitor {
 		gb.fill = GridBagConstraints.NONE;
 		gb.insets = border;
 		add(isWhispering, gb);
-		
+
 		gb.gridx = 1;
 		gb.gridy = 4;
 		gb.gridheight = 1;
@@ -240,8 +249,6 @@ public class ClientFrame extends JFrame implements PreferencesVisitor {
 		gb.fill = GridBagConstraints.NONE;
 		gb.insets = border;
 		add(whisper, gb);
-		
-	
 
 		// Setting up a menu system.
 
@@ -278,9 +285,40 @@ public class ClientFrame extends JFrame implements PreferencesVisitor {
 		addRoom.addActionListener(event -> addRoom());
 
 		refresh.addActionListener(event -> getRooms());
-		
+
 		refreshUsers.addActionListener(event -> getUsers());
 		
+		isWhispering.addChangeListener(event -> {
+			if (!isWhispering.isSelected())
+			{
+				whisper.setText("Not Whispering");
+			}
+			else
+			{
+				if ( users.getSelectedValue() != null)
+					whisper.setText("Whispering to: " + users.getSelectedValue());
+			}
+		}
+				);
+
+		JPopupMenu popup = new JPopupMenu();
+		JMenuItem leave = new JMenuItem("Leave");
+		popup.add(leave);
+		rooms.setComponentPopupMenu(popup);
+		leave.addActionListener(event -> leaveRoom());
+
+		users.addListSelectionListener(new ListSelectionListener() {
+
+			@Override
+			public void valueChanged(ListSelectionEvent e) {
+				if (!e.getValueIsAdjusting()) {
+					if (isWhispering.isSelected())
+						whisper.setText("Whispering to: " + users.getSelectedValue());
+				}
+
+			}
+		});
+
 		isWhispering.setEnabled(false);
 
 		sendText.addActionListener(event -> {
@@ -305,98 +343,65 @@ public class ClientFrame extends JFrame implements PreferencesVisitor {
 
 	}
 
-	private void getUsers() {
-		if (isConnected)
-		{
-			ClientMessage cm = new ClientMessage(CCommand.WHO, null);
-			try{
-			sendMessages.writeObject(cm);
-			sendMessages.flush();
-			}
-			catch (IOException e)
-			{
-				writeError(e);
-			}
-		}
-		else
-		{
-			writeProhibit("CANNOT GET USERS WITHOUG BEING CONNECTED");
+	private void leaveRoom() {
+
+		ClientMessage cm = new ClientMessage(CCommand.LEAVE, null);
+		writeMessage(cm);
+		if (refreshRooms) {
+			ClientMessage message = new ClientMessage(CCommand.WHO, null);
+			writeMessage(message);
+			message = new ClientMessage(CCommand.ROOMS, null);
+			writeMessage(message);
 		}
 	}
 
+	private void getUsers() {
+
+		ClientMessage cm = new ClientMessage(CCommand.WHO, null);
+		writeMessage(cm);
+	}
+
 	private void joinRoom(String roomName) {
-		
-		if (isConnected){
-			ClientMessage message = new ClientMessage(CCommand.JOIN, roomName);
-			try{
-			sendMessages.writeObject(message);
-			sendMessages.flush();
-			}
-			catch(IOException e)
-			{
-				writeError(e);
-			}
-		}
-		else
-		{
-			writeProhibit("MUST BE CONNECTED TO JOIN ROOM");
+		ClientMessage message = new ClientMessage(CCommand.JOIN, roomName);
+		writeMessage(message);
+		if (refreshRooms) {
+			ClientMessage users = new ClientMessage(CCommand.WHO, null);
+			writeMessage(users);
 		}
 	}
 
 	private void getRooms() {
-		if (isConnected){
 		ClientMessage cm = new ClientMessage(CCommand.ROOMS, null);
-		try {
-			sendMessages.writeObject(cm);
-			sendMessages.flush();
-		} catch (IOException e) {
-			e.printStackTrace();
-		}
-		}
-		else
-		{
-			writeProhibit("MUST BE CONNECTED TO GET ROOMS");
-		}
-
+		writeMessage(cm);
 	}
 
 	private void addRoom() {
-		if (!isConnected) {
-			writeProhibit("MUST BE CONNECTED TO ADD ROOM");
-		} else {
-			String roomName = JOptionPane.showInputDialog(this, "Enter a room name!");
-			ClientMessage cm = new ClientMessage(CCommand.CREATE, roomName);
-			try {
-				sendMessages.writeObject(cm);
-				sendMessages.flush();
-			} catch (IOException ex) {
-				ex.printStackTrace();
-			}
-		}
+		String roomName = JOptionPane.showInputDialog(this, "Enter a room name!");
+		ClientMessage cm = new ClientMessage(CCommand.CREATE, roomName);
+		writeMessage(cm);
 	}
 
 	// Used to send non-command messages to the server
 	private void sendMessage(String text) {
-		if (isConnected) {
-			//System.out.println("DEFINITELY!");
-			ClientMessage message = new ClientMessage(CCommand.NONE, text);
-			try {
-				sendMessages.writeObject(message);
-				sendMessages.flush();
-				//System.out.println("Sent...");
-			} catch (IOException e) {
-				writeError(e);
-				disconnect();
+			ClientMessage message = null;
+			if (isWhispering.isSelected()) {
+				String recipient = users.getSelectedValue();
+				if (recipient != null) {
+					message = new ClientMessage(CCommand.WHISPER, recipient + " " + text);
+				} else {
+					writeProhibit("Cannot send whisper without a target, select someone on the user list.");
+					return;
+				}
+			} else {
+				message = new ClientMessage(CCommand.NONE, text);
 			}
-
-		} else {
-			writeProhibit("CANNOT SEND MESSAGE WITHOUT BEING CONNECTED");
-		}
-
-	}
+			writeMessage(message);
+		} 
+	
 
 	public void loadPreferences() {
 		// Load look and feel if it exists
+		refreshRooms = storedPrefs.getBoolean("arefresh", false);
 		String laf = storedPrefs.get("laf", null);
 		if (laf != null) {
 			try {
@@ -427,10 +432,9 @@ public class ClientFrame extends JFrame implements PreferencesVisitor {
 			try {
 				socket.close();
 			} catch (IOException e) {
-				// TODO Auto-generated catch block
-				e.printStackTrace();
 			}
 		}
+		isWhispering.setEnabled(false);
 		socket = null;
 		readMessages = null;
 		sendMessages = null;
@@ -532,7 +536,7 @@ public class ClientFrame extends JFrame implements PreferencesVisitor {
 					handler.handleMessage(message);
 				}
 			} catch (IOException ex) {
-				//writeError(ex);
+				// writeError(ex);
 
 			} catch (ClassNotFoundException e) {
 				writeError(e);
@@ -542,14 +546,28 @@ public class ClientFrame extends JFrame implements PreferencesVisitor {
 		}
 
 	}
-	
-	private void writeError(Exception e)
-	{
-		recievedChat.append("ERROR: " + e.getMessage() +"\n");
+
+	private void writeMessage(ClientMessage cm) {
+		if (isConnected) {
+			synchronized (sendMessages) {
+				try {
+					sendMessages.writeObject(cm);
+					sendMessages.flush();
+				} catch (IOException e) {
+
+				}
+			}
+
+		} else {
+			writeProhibit("PLEASE CONNECT TO A SERVER FIRST.");
+		}
 	}
-	
-	private void writeProhibit(String message)
-	{
+
+	private void writeError(Exception e) {
+		recievedChat.append("ERROR: " + e.getMessage() + "\n");
+	}
+
+	private void writeProhibit(String message) {
 		recievedChat.append("PROGRAM: " + message + "\n");
 	}
 

@@ -11,12 +11,11 @@ import javax.swing.AbstractButton;
 import javax.swing.BoxLayout;
 import javax.swing.ButtonGroup;
 import javax.swing.JButton;
+import javax.swing.JCheckBox;
 import javax.swing.JDialog;
 import javax.swing.JFrame;
-import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JRadioButton;
-import javax.swing.JTextField;
 import javax.swing.LookAndFeel;
 import javax.swing.SwingUtilities;
 import javax.swing.UIManager;
@@ -24,6 +23,8 @@ import javax.swing.UIManager.LookAndFeelInfo;
 
 public class PreferencesDialog extends JDialog{
 	
+	
+	private JCheckBox autoRefresh;
 	private List<PreferencesVisitor> visitors;
 	private Preferences storedPrefs;
 	private ButtonGroup group;
@@ -64,9 +65,11 @@ public class PreferencesDialog extends JDialog{
 				}
 			});
 		}
-		
+		autoRefresh = new JCheckBox("Automatically refresh rooms and users when entering/leaving a room");
 		JButton apply = new JButton("Apply");
 		JButton cancel = new JButton("Cancel");
+		JPanel panel = new JPanel();
+		panel.add(autoRefresh);
 		buttons.add(apply);
 		buttons.add(cancel);
 		visitors = new ArrayList<>();
@@ -82,8 +85,8 @@ public class PreferencesDialog extends JDialog{
 			setVisible(false);});
 		
 		SwingUtilities.getRootPane(this).setDefaultButton(apply);
-		
 		add(lookandfeel);
+		add(panel);
 		add(buttons);
 		pack();
 		setLocationRelativeTo(parent);
@@ -108,6 +111,7 @@ public class PreferencesDialog extends JDialog{
 				break;
 			}	
 		}
+		autoRefresh.setSelected(storedPrefs.getBoolean("arefresh", false));
 		
 	}
 	
@@ -123,6 +127,8 @@ public class PreferencesDialog extends JDialog{
 				break;
 			}
 		}
+		//Put autorefresh setting into preferences
+		storedPrefs.putBoolean("arefresh", autoRefresh.isSelected());
 	}
 
 }
